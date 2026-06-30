@@ -8,8 +8,7 @@ Demo:
 https://protonvpn-serverlist.up.railway.app/
 ```
 
-The service returns the live response from Proton's VPN logicals API. It does
-not serve a checked-in or locally cached server-list JSON file.
+The service returns Proton's VPN logicals API response as JSON.
 
 ## Usage
 
@@ -66,16 +65,13 @@ server details.
 
 ## How It Works
 
-The app keeps a Proton web session token cached in `proton-session-cache.json`.
-For each request:
+The app keeps a Proton web session cached in `proton-session-cache.json` so it
+does not need to log in on every request. For each request:
 
 1. It calls Proton's live `/api/vpn/logicals` endpoint with the cached session.
 2. If the session is still valid, it returns Proton's JSON response.
 3. If Proton returns `401`, it refreshes the session with Playwright, saves the
    new session token, retries the API call, and returns the fresh JSON.
-
-Only the session token is cached. The server-list JSON is always fetched from
-Proton when the endpoint is requested.
 
 ## Self Hosting
 
