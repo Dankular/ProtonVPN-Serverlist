@@ -1,50 +1,98 @@
-# ProtonVPN Server List JSON Service
+# ProtonVPN Server List
 
-Small Node.js service that returns Proton's live VPN server-list JSON from:
+A small JSON service for retrieving Proton VPN's current server list.
+
+Demo:
 
 ```text
-GET http://localhost:3000/
+https://protonvpn-serverlist.up.railway.app/
 ```
 
-The response is always fetched from Proton's `/api/vpn/logicals` endpoint. The
-server list itself is not cached locally.
+The service returns the live response from Proton's VPN logicals API. It does
+not serve a checked-in or locally cached server-list JSON file.
 
-## What It Does
+## Usage
 
-1. Tries the cached Proton session from `proton-session-cache.json`.
-2. Calls `https://account.protonvpn.com/api/vpn/logicals`.
-3. Returns Proton's JSON response directly.
-4. If Proton returns `401`, deletes the cached session, logs in again with
-   Playwright, captures the current `x-pm-appversion`, `x-pm-uid`, and relevant
-   session cookies, saves the new session, retries the API call, and returns the
-   fresh JSON.
+Fetch the JSON directly:
 
-This avoids logging in on every request while still refreshing automatically
-when the token expires.
+```bash
+curl https://protonvpn-serverlist.up.railway.app/
+```
 
-## Requirements
+Use it from JavaScript:
 
-- Node.js 20+
-- npm
-- Playwright Chromium
-- Proton account credentials
+```js
+const response = await fetch('https://protonvpn-serverlist.up.railway.app/');
+const data = await response.json();
 
-## Setup
+console.log(`Server count: ${data.LogicalServers.length}`);
+console.log(data.LogicalServers[0]);
+```
+
+Filter servers by country:
+
+```js
+const response = await fetch('https://protonvpn-serverlist.up.railway.app/');
+const data = await response.json();
+
+const usServers = data.LogicalServers.filter((server) => server.ExitCountry === 'US');
+
+console.log(usServers.map((server) => ({
+  name: server.Name,
+  city: server.City,
+  load: server.Load,
+  tier: server.Tier
+})));
+```
+
+Fetch from PowerShell:
+
+```powershell
+$data = Invoke-RestMethod https://protonvpn-serverlist.up.railway.app/
+$data.LogicalServers | Where-Object ExitCountry -eq "US" | Select-Object Name,City,Load,Tier
+```
+
+## Response
+
+The root response is Proton's JSON payload. The main array is usually:
+
+```text
+LogicalServers
+```
+
+Each logical server entry includes Proton-provided fields such as name, entry
+country, exit country, city, load, tier, score, feature flags, and physical
+server details.
+
+## How It Works
+
+The app keeps a Proton web session token cached in `proton-session-cache.json`.
+For each request:
+
+1. It calls Proton's live `/api/vpn/logicals` endpoint with the cached session.
+2. If the session is still valid, it returns Proton's JSON response.
+3. If Proton returns `401`, it refreshes the session with Playwright, saves the
+   new session token, retries the API call, and returns the fresh JSON.
+
+Only the session token is cached. The server-list JSON is always fetched from
+Proton when the endpoint is requested.
+
+## Self Hosting
 
 Install dependencies:
 
-```powershell
-npm.cmd install
-npx.cmd playwright install chromium
+```bash
+npm install
+npx playwright install chromium
 ```
 
-Create the environment file:
+Create `.env`:
 
-```powershell
-Copy-Item .env.example .env
+```bash
+cp .env.example .env
 ```
 
-Edit `.env`:
+Set:
 
 ```text
 PORT=3000
@@ -53,45 +101,25 @@ PROTON_PASSWORD=your-password
 HEADLESS=true
 ```
 
-`HEADLESS=true` has been tested successfully. Set `HEADLESS=false` only if
-Proton starts requiring manual verification, 2FA, or another interactive browser
-check.
+Run:
 
-## Run
-
-```powershell
-npm.cmd start
+```bash
+npm start
 ```
 
-Then open:
+Then request:
 
 ```text
 http://localhost:3000/
 ```
 
-Or test from PowerShell:
+## Deployment
 
-```powershell
-Invoke-RestMethod http://localhost:3000/ | Select-Object -ExpandProperty LogicalServers
-```
+The repo includes a Dockerfile based on Microsoft's Playwright image. This is
+recommended for hosts such as Railway because Chromium needs Linux shared
+libraries that are often missing from slim Node images.
 
-## Development
-
-Run with Node watch mode:
-
-```powershell
-npm.cmd run dev
-```
-
-Validate syntax:
-
-```powershell
-node --check src\server.js
-```
-
-## Railway Deploy
-
-Set these Railway variables:
+Required environment variables:
 
 ```text
 PROTON_USERNAME=your-email
@@ -99,79 +127,12 @@ PROTON_PASSWORD=your-password
 HEADLESS=true
 ```
 
-The repo includes a `Dockerfile` based on Microsoft's Playwright image. Railway
-should deploy with that Dockerfile, which includes Chromium plus the required
-Linux shared libraries. Without the Playwright base image, Railway's default
-Node image can fail with browser launch errors such as:
+## Security
 
-```text
-browserType.launch: Executable doesn't exist
-error while loading shared libraries: libglib-2.0.so.0
-```
-
-## Session Cache
-
-`proton-session-cache.json` stores auth material:
-
-- `x-pm-appversion`
-- `x-pm-uid`
-- relevant `AUTH-<uid>` cookie
-- `Session-Id` cookie
-- `savedAt`
-
-It is gitignored and should be treated like a password.
-
-To force a fresh login:
-
-```powershell
-Remove-Item .\proton-session-cache.json -Force
-```
-
-The next request to `/` will run Playwright login again and recreate the session
-cache.
-
-## Logs
-
-The service logs simple stages:
-
-```text
-stage=session.cache.hit
-stage=logicals.fetch
-stage=logicals.done status=200
-```
-
-On a fresh login:
-
-```text
-stage=login.goto
-stage=login.username
-stage=login.password
-stage=login.wait-signed-in
-stage=login.done url=https://account.protonvpn.com/dashboard
-stage=session.captured appVersion=true uid=true cookie=true
-stage=session.cache.write
-stage=logicals.fetch
-stage=logicals.done status=200
-```
-
-## Security Notes
-
-Do not commit these files:
+Do not commit:
 
 - `.env`
 - `proton-session-cache.json`
-- logs that may contain operational details
+- runtime logs
 
-The service intentionally does not expose captured cookies or generated curl
-commands in the HTTP response. It only returns Proton's server-list JSON.
-
-## Current Verified Behavior
-
-Headless login and cached-session requests have both been tested:
-
-```text
-LOGICALSERVERS_COUNT=1585
-stage=session.cache.hit
-stage=logicals.fetch
-stage=logicals.done status=200
-```
+`proton-session-cache.json` contains auth material and is gitignored.
