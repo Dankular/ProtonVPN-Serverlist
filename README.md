@@ -89,6 +89,24 @@ Validate syntax:
 node --check src\server.js
 ```
 
+## Railway Deploy
+
+Set these Railway variables:
+
+```text
+PROTON_USERNAME=your-email
+PROTON_PASSWORD=your-password
+HEADLESS=true
+```
+
+The `postinstall` script runs `playwright install chromium` during deploy so the
+Chromium binary exists in the Railway container. Without that step, Railway can
+install the Playwright npm package but still fail at runtime with:
+
+```text
+browserType.launch: Executable doesn't exist
+```
+
 ## Session Cache
 
 `proton-session-cache.json` stores auth material:
