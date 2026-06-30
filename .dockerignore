@@ -1,0 +1,7 @@
+node_modules/
+.git/
+.env
+proton-session-cache.json
+playwright-report/
+test-results/
+*.log

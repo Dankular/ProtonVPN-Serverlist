@@ -99,12 +99,14 @@ PROTON_PASSWORD=your-password
 HEADLESS=true
 ```
 
-The `postinstall` script runs `playwright install chromium` during deploy so the
-Chromium binary exists in the Railway container. Without that step, Railway can
-install the Playwright npm package but still fail at runtime with:
+The repo includes a `Dockerfile` based on Microsoft's Playwright image. Railway
+should deploy with that Dockerfile, which includes Chromium plus the required
+Linux shared libraries. Without the Playwright base image, Railway's default
+Node image can fail with browser launch errors such as:
 
 ```text
 browserType.launch: Executable doesn't exist
+error while loading shared libraries: libglib-2.0.so.0
 ```
 
 ## Session Cache
