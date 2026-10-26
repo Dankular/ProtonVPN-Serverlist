@@ -312,6 +312,8 @@ async function getLogicals() {
   return result;
 }
 
+app.get('/healthz', (_req, res) => res.json({status: 'ok'}));
+
 app.get('/', async (_req, res, next) => {
   try {
     const result = await getLogicals();
